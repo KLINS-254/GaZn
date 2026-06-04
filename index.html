@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crisp Text 15-Second Heart Animation</title>
+    <title>Sharp 15-Second Heart Loop</title>
     <style>
         * {
             margin: 0;
@@ -32,7 +32,7 @@
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        // Increased particle count for a denser, much sharper text resolution
+        // Upgraded particle density for maximum text clarity
         const PARTICLE_COUNT = 3500; 
         let particles = [];
         let width = canvas.width = window.innerWidth;
@@ -66,7 +66,6 @@
             memCanvas.width = width;
             memCanvas.height = height;
             
-            // Scaled font configuration for maximum clarity
             const fontSize = Math.min(width * 0.09, 85);
             memCtx.font = `bold ${fontSize}px sans-serif`;
             memCtx.fillStyle = '#fff';
@@ -74,7 +73,7 @@
             memCtx.textBaseline = 'middle';
             memCtx.fillText("Joy ❤ Ticoh", width / 2, height / 2);
 
-            // Tight grid scanning (every 3 pixels instead of 4) for high-definition text mapping
+            // Tight sampling grid (3px) removes blurriness and gives crisp text borders
             const imgData = memCtx.getImageData(0, 0, width, height).data;
             for (let y = 0; y < height; y += 3) {
                 for (let x = 0; x < width; x += 3) {
@@ -85,7 +84,6 @@
                 }
             }
 
-            // Generate Big Heart targets
             const heartScale = Math.min(width, height) * 0.016;
             for (let i = 0; i < PARTICLE_COUNT; i++) {
                 const t = (i / PARTICLE_COUNT) * Math.PI * 2;
@@ -106,13 +104,14 @@
             resetToStar() {
                 this.x = Math.random() * width;
                 this.y = Math.random() * height;
-                this.vx = (Math.random() - 0.5) * 1.2; 
-                this.vy = (Math.random() - 0.5) * 1.2;
+                this.vx = (Math.random() - 0.5) * 1.5; 
+                this.vy = (Math.random() - 0.5) * 1.5;
                 this.size = Math.random() * 2 + 0.5;
                 this.hueOffset = Math.random() * 40 - 20; 
-                this.brightness = Math.random() * 30 + 70; // Slightly brighter stars
+                this.brightness = Math.random() * 30 + 70;
                 this.alpha = Math.random() * 0.5 + 0.5;
-                this.speed = 0.07 + Math.random() * 0.05; 
+                // Snappier interpolation speed for faster morphing behaviors
+                this.speed = 0.08 + Math.random() * 0.05; 
             }
 
             update() {
@@ -130,14 +129,12 @@
                     if (this.alpha > 1) this.alpha = 1;
 
                 } else if (animationState === 1) {
-                    // Form text layout
                     if (nameTargets.length > 0) {
                         const target = nameTargets[this.index % nameTargets.length];
                         this.x += (target.x - this.x) * this.speed;
                         this.y += (target.y - this.y) * this.speed;
                     }
                 } else if (animationState === 2) {
-                    // Form heart layout
                     if (heartTargets.length > 0) {
                         const target = heartTargets[this.index % heartTargets.length];
                         this.x += (target.x - this.x) * this.speed;
@@ -154,7 +151,6 @@
                 const currentHue = (baseHue + this.hueOffset) % 360;
                 ctx.fillStyle = `hsla(${currentHue}, 95%, ${this.brightness}%, ${this.alpha})`;
                 
-                // Fine-tuned glow so text lines look solid rather than blurry
                 ctx.shadowBlur = this.size * 3;
                 ctx.shadowColor = `hsla(${currentHue}, 95%, 65%, 0.7)`;
                 
@@ -173,29 +169,28 @@
         }
 
         function loop() {
-            // Balanced trailing for sharp forms but smooth movement tracking
             ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
             ctx.fillRect(0, 0, width, height);
 
             stateTimer++;
 
-            // Precise 15-Second Loop Timeline (Assumes roughly 60fps = 900 total frames)
+            // Precise 15-Second Loop Breakdown (at ~60 frames per second = 900 total frames)
             if (animationState === 0 && stateTimer > 210) { 
-                // State 0: Stars float for 3.5 seconds (210 frames)
+                // Phase 1: Free Star Drift (3.5 seconds)
                 animationState = 1;
                 stateTimer = 0;
             } else if (animationState === 1 && stateTimer > 300) { 
-                // State 1: Form and hold clear names for 5 seconds (300 frames)
+                // Phase 2: Form & Hold Crisp Names (5.0 seconds)
                 animationState = 2;
                 stateTimer = 0;
                 
-                // Explode out violently when breaking text apart
+                // Explosive burst to break the names apart dynamically
                 particles.forEach(p => {
-                    p.x += (Math.random() - 0.5) * 400;
-                    p.y += (Math.random() - 0.5) * 400;
+                    p.x += (Math.random() - 0.5) * 450;
+                    p.y += (Math.random() - 0.5) * 450;
                 });
             } else if (animationState === 2 && stateTimer > 390) { 
-                // State 2: Form and hold big heart for 6.5 seconds (390 frames) -> Total = 15 seconds
+                // Phase 3: Form & Hold Giant Heart (6.5 seconds)
                 animationState = 0;
                 stateTimer = 0;
                 particles.forEach(p => p.resetToStar());
