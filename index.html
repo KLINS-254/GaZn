@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Starfield Heart Animation</title>
+    <title>Fast Starfield Heart Animation</title>
     <style>
         * {
             margin: 0;
@@ -32,50 +32,39 @@
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        // Configuration
-        const PARTICLE_COUNT = 2500; // Optimal balance for a "dense starfield" without lag
+        const PARTICLE_COUNT = 2500; 
         let particles = [];
         let width = canvas.width = window.innerWidth;
         let height = canvas.height = window.innerHeight;
 
-        // Animation States: 0 = Starfield, 1 = Names, 2 = Big Heart
         let animationState = 0; 
         let stateTimer = 0;
-        
-        // Base Hue for the stars (changes over time, triggering all stars to shift color)
         let baseHue = 340; 
 
-        // Target coordinates arrays
         let nameTargets = [];
         let heartTargets = [];
 
-        // Handle Window Resize
         window.addEventListener('resize', () => {
             width = canvas.width = window.innerWidth;
             height = canvas.height = window.innerHeight;
-            generateTargets(); // Recalculate shapes on resize
+            generateTargets();
         });
 
-        // Mathematical Formula for Heart Shape coordinates
         function getHeartPoint(t, scale) {
-            // Standard parametric heart equations
             const x = 16 * Math.pow(Math.sin(t), 3);
             const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
-            return { x: x * scale, y: -y * scale }; // Invert Y for screen coordinates
+            return { x: x * scale, y: -y * scale };
         }
 
-        // Pre-calculate target positions for Names and the Big Heart
         function generateTargets() {
             nameTargets = [];
             heartTargets = [];
 
-            // 1. Generate text targets (Joy ❤ Ticoh)
             const memCanvas = document.createElement('canvas');
             const memCtx = memCanvas.getContext('2d');
             memCanvas.width = width;
             memCanvas.height = height;
             
-            // Adapt font size dynamically based on screen width
             const fontSize = Math.min(width * 0.08, 70);
             memCtx.font = `bold ${fontSize}px sans-serif`;
             memCtx.fillStyle = '#fff';
@@ -83,22 +72,19 @@
             memCtx.textBaseline = 'middle';
             memCtx.fillText("Joy ❤ Ticoh", width / 2, height / 2);
 
-            // Scan the hidden canvas for pixel data to find text layout
             const imgData = memCtx.getImageData(0, 0, width, height).data;
-            for (let y = 0; y < height; y += 4) { // Sample every 4th pixel
+            for (let y = 0; y < height; y += 4) {
                 for (let x = 0; x < width; x += 4) {
                     const index = (y * width + x) * 4;
-                    if (imgData[index + 3] > 128) { // If pixel is not transparent
+                    if (imgData[index + 3] > 128) {
                         nameTargets.push({ x: x, y: y });
                     }
                 }
             }
 
-            // 2. Generate Big Heart targets
             const heartScale = Math.min(width, height) * 0.015;
             for (let i = 0; i < PARTICLE_COUNT; i++) {
                 const t = (i / PARTICLE_COUNT) * Math.PI * 2;
-                // Add slight randomness inside the heart equation so it looks filled/organic
                 const innerScale = heartScale * (0.6 + Math.random() * 0.4); 
                 const pt = getHeartPoint(t, innerScale);
                 heartTargets.push({
@@ -108,57 +94,45 @@
             }
         }
 
-        // Particle Class
         class Particle {
             constructor() {
                 this.resetToStar();
             }
 
             resetToStar() {
-                // Randomly placed across the screen
                 this.x = Math.random() * width;
                 this.y = Math.random() * height;
-                // Star drift velocity
-                this.vx = (Math.random() - 0.5) * 0.5;
-                this.vy = (Math.random() - 0.5) * 0.5;
-                
+                this.vx = (Math.random() - 0.5) * 1.5; // Slightly faster drift
+                this.vy = (Math.random() - 0.5) * 1.5;
                 this.size = Math.random() * 2 + 0.5;
-                // Give individual stars subtle unique hues, though they track the base hue
-                this.hueOffset = Math.random() * 30 - 15; 
+                this.hueOffset = Math.random() * 40 - 20; 
                 this.brightness = Math.random() * 40 + 60;
                 this.alpha = Math.random() * 0.5 + 0.5;
-                this.speed = 0.05 + Math.random() * 0.04; // Morphing speed
+                // Boosted morph speed so they assemble within the tighter 10-second window
+                this.speed = 0.08 + Math.random() * 0.06; 
             }
 
             update() {
-                // Smoothly cycle the base hue over time so they all transition colors together
-                baseHue += 0.0002; 
+                baseHue += 0.001; // Faster color shifting
                 
                 if (animationState === 0) {
-                    // State 0: Free floating glowing stars
                     this.x += this.vx;
                     this.y += this.vy;
 
-                    // Bounce off walls gently
                     if (this.x < 0 || this.x > width) this.vx *= -1;
                     if (this.y < 0 || this.y > height) this.vy *= -1;
 
-                    // Twinkle effect
                     this.alpha += (Math.random() - 0.5) * 0.1;
                     if (this.alpha < 0.2) this.alpha = 0.2;
                     if (this.alpha > 1) this.alpha = 1;
 
                 } else if (animationState === 1) {
-                    // State 1: Gather into names
                     if (nameTargets.length > 0) {
-                        // Map particle index to a text target point
                         const target = nameTargets[Math.floor(this.index % nameTargets.length)];
-                        // Linear interpolation (Lerp) for smooth attraction physics
                         this.x += (target.x - this.x) * this.speed;
                         this.y += (target.y - this.y) * this.speed;
                     }
                 } else if (animationState === 2) {
-                    // State 2: Scatter and gather into the Big Heart
                     if (heartTargets.length > 0) {
                         const target = heartTargets[this.index % heartTargets.length];
                         this.x += (target.x - this.x) * this.speed;
@@ -172,11 +146,9 @@
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
                 
-                // Color formatting using HSLA (Hue, Saturation, Lightness, Alpha)
                 const currentHue = (baseHue + this.hueOffset) % 360;
                 ctx.fillStyle = `hsla(${currentHue}, 95%, ${this.brightness}%, ${this.alpha})`;
                 
-                // Bloom/Glow Effect
                 ctx.shadowBlur = this.size * 4;
                 ctx.shadowColor = `hsla(${currentHue}, 95%, 60%, 0.8)`;
                 
@@ -185,47 +157,43 @@
             }
         }
 
-        // Initialize Particles
         function init() {
             generateTargets();
             for (let i = 0; i < PARTICLE_COUNT; i++) {
                 const p = new Particle();
-                p.index = i; // Store index to map to shape targets uniquely
+                p.index = i;
                 particles.push(p);
             }
         }
 
-        // Main Loop Controlling States and Transitions
         function loop() {
-            // Clear canvas with a slight trail effect to make the stars look like they travel
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
             ctx.fillRect(0, 0, width, height);
 
             stateTimer++;
 
-            // Timeline Coordinator
-            if (animationState === 0 && stateTimer > 180) { 
-                // After ~3 seconds of drifting stars, form names
+            // Accelerated Timeline (Assuming ~60 frames per second)
+            if (animationState === 0 && stateTimer > 120) { 
+                // State 0: Stars drift for 2 seconds (120 frames)
                 animationState = 1;
                 stateTimer = 0;
-            } else if (animationState === 1 && stateTimer > 240) { 
-                // Hold names for ~4 seconds, then scatter into big heart
+            } else if (animationState === 1 && stateTimer > 180) { 
+                // State 1: Gather and hold text for 3 seconds (180 frames)
                 animationState = 2;
                 stateTimer = 0;
                 
-                // Inject a quick random explosion explosion burst before morphing to heart
+                // Aggressive explosion burst when breaking apart text
                 particles.forEach(p => {
-                    p.x += (Math.random() - 0.5) * 100;
-                    p.y += (Math.random() - 0.5) * 100;
+                    p.x += (Math.random() - 0.5) * 300;
+                    p.y += (Math.random() - 0.5) * 300;
                 });
-            } else if (animationState === 2 && stateTimer > 240) { 
-                // Hold big heart for ~4 seconds, then break back down to stars
+            } else if (animationState === 2 && stateTimer > 180) { 
+                // State 2: Scatter and form big heart for 3 seconds (180 frames)
                 animationState = 0;
                 stateTimer = 0;
                 particles.forEach(p => p.resetToStar());
             }
 
-            // Update & Render all particles
             particles.forEach(p => {
                 p.update();
                 p.draw();
@@ -234,7 +202,6 @@
             requestAnimationFrame(loop);
         }
 
-        // Run
         init();
         loop();
     </script>
