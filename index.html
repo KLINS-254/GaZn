@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Joy & Ticoh Particle Animation</title>
+    <title>Joy & Ticoh Animation Fixed</title>
     <style>
         * {
             margin: 0;
@@ -32,25 +32,21 @@
         const canvas = document.getElementById('particleCanvas');
         const ctx = canvas.getContext('2d');
 
-        // Resize Canvas
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
         }
         resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
 
-        // Configuration
-        const PARTICLE_COUNT = 12000; // Maintained high count for maximum density
+        const PARTICLE_COUNT = 8000; // Adjusted for universal browser compatibility
         const COLORS = [
-            'rgba(255, 40, 80, 0.85)',   // Red
-            'rgba(40, 255, 130, 0.85)',  // Green
-            'rgba(180, 40, 255, 0.85)',  // Purple
-            'rgba(255, 200, 40, 0.85)',  // Gold/Yellow
-            'rgba(40, 210, 255, 0.85)'   // Cyan
+            'rgba(255, 40, 80, 0.85)',   
+            'rgba(40, 255, 130, 0.85)',  
+            'rgba(180, 40, 255, 0.85)',  
+            'rgba(255, 200, 40, 0.85)',  
+            'rgba(40, 210, 255, 0.85)'   
         ];
 
-        // Animation States: 0 = Text (Joy ❤ Ticoh), 1 = Explode/Scatter, 2 = Heart
         let currentState = 0; 
         let stateTimer = 0;
 
@@ -59,106 +55,177 @@
             heart: []
         };
 
-        // --- Math & Shape Helpers ---
-        
-        // Heart Math Equation (Parametric)
         function getHeartPoint(t, scale) {
             const x = 16 * Math.pow(Math.sin(t), 3);
             const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
             return { x: x * scale, y: -y * scale };
         }
 
-        // Generate Target Coordinates for Text and Heart
         function generateTargets() {
             targets.text = [];
             targets.heart = [];
 
-            // 1. Generate Text Targets using an offscreen canvas
+            // 1. Robust Offscreen Canvas Setup
             const offCanvas = document.createElement('canvas');
             const offCtx = offCanvas.getContext('2d');
             offCanvas.width = canvas.width;
             offCanvas.height = canvas.height;
             
-            // Render text cleanly using a balanced dynamic font scale
-            const fontSize = Math.min(canvas.width / 10, 85);
+            const fontSize = Math.min(canvas.width / 8, 80);
             offCtx.font = `bold ${fontSize}px sans-serif`;
             offCtx.textAlign = 'center';
             offCtx.textBaseline = 'middle';
-            offCtx.fillStyle = 'white';
+            offCtx.fillStyle = '#ffffff'; // Force white hex for solid detection
             offCtx.fillText("Joy ❤ Ticoh", canvas.width / 2, canvas.height / 2);
 
-            const imgData = offCtx.getImageData(0, 0, canvas.width, canvas.height).data;
-            
-            // Scan text pixels using a tight step value to keep the complex text shapes clear
-            const step = Math.max(1, Math.floor(Math.sqrt((canvas.width * canvas.height) / PARTICLE_COUNT) * 0.65));
-            for (let y = 0; y < canvas.height; y += step) {
-                for (let x = 0; x < canvas.width; x += step) {
-                    const index = (y * canvas.width + x) * 4;
-                    if (imgData[index + 3] > 128) { 
-                        targets.text.push({ x: x, y: y });
+            try {
+                const imgData = offCtx.getImageData(0, 0, canvas.width, canvas.height).data;
+                // Fixed scanning step to prevent empty maps
+                const step = canvas.width < 600 ? 2 : 3; 
+
+                for (let y = 0; y < canvas.height; y += step) {
+                    for (let x = 0; x < canvas.width; x += step) {
+                        const index = (y * canvas.width + x) * 4;
+                        // Read red channel value or alpha channel value safely
+                        if (imgData[index] > 200 || imgData[index + 3] > 128) { 
+                            targets.text.push({ x: x, y: y });
+                        }
                     }
+                }
+            } catch (e) {
+                console.error("Canvas read error, loading text backup coordinate map.");
+            }
+
+            // Fallback safety net if canvas reading fails entirely
+            if (targets.text.length === 0) {
+                for (let i = 0; i < PARTICLE_COUNT; i++) {
+                    targets.text.push({
+                        x: canvas.width / 2 + (Math.random() - 0.5) * (canvas.width * 0.6),
+                        y: canvas.height / 2 + (Math.random() - 0.5) * 40
+                    });
                 }
             }
 
-            // 2. Generate Heart Targets
-            const heartScale = Math.min(canvas.width, canvas.height) / 45;
+            // 2. Generate Heart Matrix
+            const heartScale = Math.min(canvas.width, canvas.height) / 40;
             for (let i = 0; i < PARTICLE_COUNT; i++) {
                 const t = Math.PI * 2 * (i / PARTICLE_COUNT);
                 const basePoint = getHeartPoint(t, heartScale);
+                const innerFactor = Math.random() * 0.3 + 0.7; 
                 
-                // Add internal scattering so it forms a gorgeous solid core heart
-                const innerFactor = Math.random() * 0.25 + 0.75; 
-                const hX = canvas.width / 2 + basePoint.x * innerFactor;
-                const hY = canvas.height / 2 + basePoint.y * innerFactor;
-                
-                targets.heart.push({ x: hX, y: hY });
+                targets.heart.push({ 
+                    x: canvas.width / 2 + basePoint.x * innerFactor, 
+                    y: canvas.height / 2 + basePoint.y * innerFactor 
+                });
             }
 
-            // Shuffle text targets so colors mix beautifully when forming text
             targets.text.sort(() => Math.random() - 0.5);
         }
 
-        // --- Particle Object ---
         class Particle {
             constructor() {
                 this.x = Math.random() * canvas.width;
                 this.y = Math.random() * canvas.height;
-                this.vx = (Math.random() - 0.5) * 10;
-                this.vy = (Math.random() - 0.5) * 10;
-                this.radius = Math.random() * 1.8 + 1;
+                this.vx = (Math.random() - 0.5) * 5;
+                this.vy = (Math.random() - 0.5) * 5;
+                this.radius = Math.random() * 1.5 + 1;
                 this.color = COLORS[Math.floor(Math.random() * COLORS.length)];
-                this.friction = 0.90; // Tuned for rapid, crisp locking behavior
-                this.ease = 0.09;
+                this.friction = 0.88; 
+                this.ease = 0.1;
             }
 
             update(index) {
                 if (currentState === 0) {
-                    // Phase 0: Gather into Text "Joy ❤ Ticoh"
                     const target = targets.text[index % targets.text.length];
                     if (target) {
                         this.vx += (target.x - this.x) * this.ease;
                         this.vy += (target.y - this.y) * this.ease;
-                        this.vx *= this.friction;
-                        this.vy *= this.friction;
                     }
                 } 
                 else if (currentState === 1) {
-                    // Phase 1: Break into small particles (Explosion)
-                    this.vx *= 0.97;
-                    this.vy *= 0.97;
-                    
-                    if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
-                    if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+                    this.vx *= 0.98;
+                    this.vy *= 0.98;
                 } 
                 else if (currentState === 2) {
-                    // Phase 2: Build a big heart (with subtle breathing beat effect)
                     const target = targets.heart[index % targets.heart.length];
                     if (target) {
-                        const beat = 1 + Math.sin(Date.now() * 0.005) * 0.03;
+                        const beat = 1 + Math.sin(Date.now() * 0.006) * 0.04;
                         const centerX = canvas.width / 2;
                         const centerY = canvas.height / 2;
                         
                         const dynamicX = centerX + (target.x - centerX) * beat;
                         const dynamicY = centerY + (target.y - centerY) * beat;
 
-                        this.vx += (dynamicX - this.x) * (this.ease * 0.8);
+                        this.vx += (dynamicX - this.x) * this.ease;
+                        this.vy += (dynamicY - this.y) * this.ease;
+                    }
+                }
+
+                this.vx *= this.friction;
+                this.vy *= this.friction;
+                this.x += this.vx;
+                this.y += this.vy;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+
+            explode() {
+                const angle = Math.random() * Math.PI * 2;
+                const force = Math.random() * 15 + 5;
+                this.vx = Math.cos(angle) * force;
+                this.vy = Math.sin(angle) * force;
+            }
+        }
+
+        const particles = [];
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+            particles.push(new Particle());
+        }
+
+        generateTargets();
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+            generateTargets();
+        });
+
+        function animate() {
+            ctx.fillStyle = 'rgba(5, 5, 5, 0.25)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            stateTimer++;
+
+            // Precise 15-Second Loop Breakdown (60fps standard)
+            if (currentState === 0 && stateTimer > 300) {
+                // 5 Seconds Text display -> Explode
+                currentState = 1;
+                stateTimer = 0;
+                particles.forEach(p => p.explode());
+            } 
+            else if (currentState === 1 && stateTimer > 150) {
+                // 2.5 Seconds Scatter/Explosion space loop -> Form Heart
+                currentState = 2;
+                stateTimer = 0;
+            } 
+            else if (currentState === 2 && stateTimer > 450) {
+                // 7.5 Seconds pulsing Heart -> Loop back to Text
+                currentState = 0;
+                stateTimer = 0;
+            }
+
+            for (let i = 0; i < particles.length; i++) {
+                particles[i].update(i);
+                particles[i].draw();
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
