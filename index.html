@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trufennah Particle Animation</title>
+    <title>Starfield Heart Animation</title>
     <style>
         * {
             margin: 0;
@@ -14,232 +14,229 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #050505;
+            background-color: #000;
             font-family: sans-serif;
         }
         canvas {
             display: block;
-            width: 100%;
-            height: 100%;
+            width: 100vw;
+            height: 100vh;
         }
     </style>
 </head>
 <body>
 
-    <canvas id="particleCanvas"></canvas>
+    <canvas id="canvas"></canvas>
 
     <script>
-        const canvas = document.getElementById('particleCanvas');
+        const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        // Resize Canvas
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
-
         // Configuration
-        const PARTICLE_COUNT = 12000; // High count optimized for performance
-        const COLORS = [
-            'rgba(255, 40, 80, 0.85)',   // Red
-            'rgba(40, 255, 130, 0.85)',  // Green
-            'rgba(180, 40, 255, 0.85)',  // Purple
-            'rgba(255, 200, 40, 0.85)',  // Gold/Yellow
-            'rgba(40, 210, 255, 0.85)'   // Cyan
-        ];
+        const PARTICLE_COUNT = 2500; // Optimal balance for a "dense starfield" without lag
+        let particles = [];
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
 
-        // Animation States: 0 = Text, 1 = Explode/Scatter, 2 = Heart
-        let currentState = 0; 
+        // Animation States: 0 = Starfield, 1 = Names, 2 = Big Heart
+        let animationState = 0; 
         let stateTimer = 0;
-
-        const targets = {
-            text: [],
-            heart: []
-        };
-
-        // --- Math & Shape Helpers ---
         
-        // Heart Math Equation (Parametric)
+        // Base Hue for the stars (changes over time, triggering all stars to shift color)
+        let baseHue = 340; 
+
+        // Target coordinates arrays
+        let nameTargets = [];
+        let heartTargets = [];
+
+        // Handle Window Resize
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            generateTargets(); // Recalculate shapes on resize
+        });
+
+        // Mathematical Formula for Heart Shape coordinates
         function getHeartPoint(t, scale) {
+            // Standard parametric heart equations
             const x = 16 * Math.pow(Math.sin(t), 3);
             const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
-            return { x: x * scale, y: -y * scale }; // Canvas Y is inverted
+            return { x: x * scale, y: -y * scale }; // Invert Y for screen coordinates
         }
 
-        // Generate Target Coordinates for Text and Heart
+        // Pre-calculate target positions for Names and the Big Heart
         function generateTargets() {
-            targets.text = [];
-            targets.heart = [];
+            nameTargets = [];
+            heartTargets = [];
 
-            // 1. Generate Text Targets using an offscreen canvas
-            const offCanvas = document.createElement('canvas');
-            const offCtx = offCanvas.getContext('2d');
-            offCanvas.width = canvas.width;
-            offCanvas.height = canvas.height;
+            // 1. Generate text targets (Joy ❤ Ticoh)
+            const memCanvas = document.createElement('canvas');
+            const memCtx = memCanvas.getContext('2d');
+            memCanvas.width = width;
+            memCanvas.height = height;
             
-            // Render text to sample pixels
-            const fontSize = Math.min(canvas.width / 8, 120);
-            offCtx.font = `bold ${fontSize}px sans-serif`;
-            offCtx.textAlign = 'center';
-            offCtx.textBaseline = 'middle';
-            offCtx.fillStyle = 'white';
-            offCtx.fillText("Trufennah", canvas.width / 2, canvas.height / 2);
+            // Adapt font size dynamically based on screen width
+            const fontSize = Math.min(width * 0.08, 70);
+            memCtx.font = `bold ${fontSize}px sans-serif`;
+            memCtx.fillStyle = '#fff';
+            memCtx.textAlign = 'center';
+            memCtx.textBaseline = 'middle';
+            memCtx.fillText("Joy ❤ Ticoh", width / 2, height / 2);
 
-            const imgData = offCtx.getImageData(0, 0, canvas.width, canvas.height).data;
-            
-            // Scan text pixels (step jumps to sample efficiently)
-            const step = Math.max(1, Math.floor(Math.sqrt((canvas.width * canvas.height) / PARTICLE_COUNT) * 0.8));
-            for (let y = 0; y < canvas.height; y += step) {
-                for (let x = 0; x < canvas.width; x += step) {
-                    const index = (y * canvas.width + x) * 4;
-                    if (imgData[index + 3] > 128) { // If pixel is opaque enough
-                        targets.text.push({ x: x, y: y });
+            // Scan the hidden canvas for pixel data to find text layout
+            const imgData = memCtx.getImageData(0, 0, width, height).data;
+            for (let y = 0; y < height; y += 4) { // Sample every 4th pixel
+                for (let x = 0; x < width; x += 4) {
+                    const index = (y * width + x) * 4;
+                    if (imgData[index + 3] > 128) { // If pixel is not transparent
+                        nameTargets.push({ x: x, y: y });
                     }
                 }
             }
 
-            // 2. Generate Heart Targets
-            const heartScale = Math.min(canvas.width, canvas.height) / 45;
+            // 2. Generate Big Heart targets
+            const heartScale = Math.min(width, height) * 0.015;
             for (let i = 0; i < PARTICLE_COUNT; i++) {
-                // Distribute points across the heart edge and fill interior slightly
-                const t = Math.PI * 2 * (i / PARTICLE_COUNT);
-                const basePoint = getHeartPoint(t, heartScale);
-                
-                // Add minor random internal scattering so it's a solid/dense heart
-                const innerFactor = Math.random() * 0.15 + 0.85; 
-                const hX = canvas.width / 2 + basePoint.x * innerFactor;
-                const hY = canvas.height / 2 + basePoint.y * innerFactor;
-                
-                targets.heart.push({ x: hX, y: hY });
+                const t = (i / PARTICLE_COUNT) * Math.PI * 2;
+                // Add slight randomness inside the heart equation so it looks filled/organic
+                const innerScale = heartScale * (0.6 + Math.random() * 0.4); 
+                const pt = getHeartPoint(t, innerScale);
+                heartTargets.push({
+                    x: pt.x + width / 2,
+                    y: pt.y + height / 2
+                });
             }
-
-            // Shuffle text targets so colors mix beautifully when forming text
-            targets.text.sort(() => Math.random() - 0.5);
         }
 
-        // --- Particle Object ---
+        // Particle Class
         class Particle {
             constructor() {
-                this.x = Math.random() * canvas.width;
-                this.y = Math.random() * canvas.height;
-                this.vx = (Math.random() - 0.5) * 10;
-                this.vy = (Math.random() - 0.5) * 10;
-                this.radius = Math.random() * 1.8 + 1;
-                this.color = COLORS[Math.floor(Math.random() * COLORS.length)];
-                this.friction = 0.92;
-                this.ease = 0.08;
+                this.resetToStar();
             }
 
-            update(index) {
-                if (currentState === 0) {
-                    // Phase 0: Gather into Text "Trufennah"
-                    const target = targets.text[index % targets.text.length];
-                    if (target) {
-                        this.vx += (target.x - this.x) * this.ease;
-                        this.vy += (target.y - this.y) * this.ease;
-                        this.vx *= this.friction;
-                        this.vy *= this.friction;
-                    }
-                } 
-                else if (currentState === 1) {
-                    // Phase 1: Break into small particles (Explosion)
-                    // Apply constant drifting velocity after the explosion kick
-                    this.vx *= 0.98;
-                    this.vy *= 0.98;
-                    // Wrap around screen edges during drift
-                    if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
-                    if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
-                } 
-                else if (currentState === 2) {
-                    // Phase 2: Build a big heart (with subtle breathing beat effect)
-                    const target = targets.heart[index % targets.heart.length];
-                    if (target) {
-                        // Create beating scale offset using sine wave
-                        const beat = 1 + Math.sin(Date.now() * 0.005) * 0.04;
-                        const centerX = canvas.width / 2;
-                        const centerY = canvas.height / 2;
-                        
-                        // Scale outward from center
-                        const dynamicX = centerX + (target.x - centerX) * beat;
-                        const dynamicY = centerY + (target.y - centerY) * beat;
+            resetToStar() {
+                // Randomly placed across the screen
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                // Star drift velocity
+                this.vx = (Math.random() - 0.5) * 0.5;
+                this.vy = (Math.random() - 0.5) * 0.5;
+                
+                this.size = Math.random() * 2 + 0.5;
+                // Give individual stars subtle unique hues, though they track the base hue
+                this.hueOffset = Math.random() * 30 - 15; 
+                this.brightness = Math.random() * 40 + 60;
+                this.alpha = Math.random() * 0.5 + 0.5;
+                this.speed = 0.05 + Math.random() * 0.04; // Morphing speed
+            }
 
-                        this.vx += (dynamicX - this.x) * (this.ease * 0.8);
-                        this.vy += (dynamicY - this.y) * (this.ease * 0.8);
-                        this.vx *= this.friction;
-                        this.vy *= this.friction;
+            update() {
+                // Smoothly cycle the base hue over time so they all transition colors together
+                baseHue += 0.0002; 
+                
+                if (animationState === 0) {
+                    // State 0: Free floating glowing stars
+                    this.x += this.vx;
+                    this.y += this.vy;
+
+                    // Bounce off walls gently
+                    if (this.x < 0 || this.x > width) this.vx *= -1;
+                    if (this.y < 0 || this.y > height) this.vy *= -1;
+
+                    // Twinkle effect
+                    this.alpha += (Math.random() - 0.5) * 0.1;
+                    if (this.alpha < 0.2) this.alpha = 0.2;
+                    if (this.alpha > 1) this.alpha = 1;
+
+                } else if (animationState === 1) {
+                    // State 1: Gather into names
+                    if (nameTargets.length > 0) {
+                        // Map particle index to a text target point
+                        const target = nameTargets[Math.floor(this.index % nameTargets.length)];
+                        // Linear interpolation (Lerp) for smooth attraction physics
+                        this.x += (target.x - this.x) * this.speed;
+                        this.y += (target.y - this.y) * this.speed;
+                    }
+                } else if (animationState === 2) {
+                    // State 2: Scatter and gather into the Big Heart
+                    if (heartTargets.length > 0) {
+                        const target = heartTargets[this.index % heartTargets.length];
+                        this.x += (target.x - this.x) * this.speed;
+                        this.y += (target.y - this.y) * this.speed;
                     }
                 }
-
-                this.x += this.vx;
-                this.y += this.vy;
             }
 
             draw() {
+                ctx.save();
                 ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = this.color;
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                
+                // Color formatting using HSLA (Hue, Saturation, Lightness, Alpha)
+                const currentHue = (baseHue + this.hueOffset) % 360;
+                ctx.fillStyle = `hsla(${currentHue}, 95%, ${this.brightness}%, ${this.alpha})`;
+                
+                // Bloom/Glow Effect
+                ctx.shadowBlur = this.size * 4;
+                ctx.shadowColor = `hsla(${currentHue}, 95%, 60%, 0.8)`;
+                
                 ctx.fill();
-            }
-
-            explode() {
-                // Give a random, high-velocity outward kick
-                const angle = Math.random() * Math.PI * 2;
-                const force = Math.random() * 15 + 5;
-                this.vx = Math.cos(angle) * force;
-                this.vy = Math.sin(angle) * force;
+                ctx.restore();
             }
         }
 
-        // Initialize particles
-        const particles = [];
-        for (let i = 0; i < PARTICLE_COUNT; i++) {
-            particles.push(new Particle());
+        // Initialize Particles
+        function init() {
+            generateTargets();
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const p = new Particle();
+                p.index = i; // Store index to map to shape targets uniquely
+                particles.push(p);
+            }
         }
 
-        // Setup initial coordinates
-        generateTargets();
-        // Regenerate points if window dimensions change
-        window.addEventListener('resize', generateTargets);
-
-        // --- Main Animation Loop ---
-        function animate() {
-            // Semi-transparent background clear gives particles a nice motion-blur trail
-            ctx.fillStyle = 'rgba(5, 5, 5, 0.25)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // Main Loop Controlling States and Transitions
+        function loop() {
+            // Clear canvas with a slight trail effect to make the stars look like they travel
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(0, 0, width, height);
 
             stateTimer++;
 
-            // State Machine transitions
-            if (currentState === 0 && stateTimer > 160) {
-                // Transition: Text -> Explode
-                currentState = 1;
+            // Timeline Coordinator
+            if (animationState === 0 && stateTimer > 180) { 
+                // After ~3 seconds of drifting stars, form names
+                animationState = 1;
                 stateTimer = 0;
-                particles.forEach(p => p.explode());
-            } 
-            else if (currentState === 1 && stateTimer > 100) {
-                // Transition: Explode -> Heart
-                currentState = 2;
+            } else if (animationState === 1 && stateTimer > 240) { 
+                // Hold names for ~4 seconds, then scatter into big heart
+                animationState = 2;
                 stateTimer = 0;
-            } 
-            else if (currentState === 2 && stateTimer > 240) {
-                // Transition: Heart -> Back to Text
-                currentState = 0;
+                
+                // Inject a quick random explosion explosion burst before morphing to heart
+                particles.forEach(p => {
+                    p.x += (Math.random() - 0.5) * 100;
+                    p.y += (Math.random() - 0.5) * 100;
+                });
+            } else if (animationState === 2 && stateTimer > 240) { 
+                // Hold big heart for ~4 seconds, then break back down to stars
+                animationState = 0;
                 stateTimer = 0;
+                particles.forEach(p => p.resetToStar());
             }
 
-            // Update and draw particles
-            for (let i = 0; i < particles.length; i++) {
-                particles[i].update(i);
-                particles[i].draw();
-            }
+            // Update & Render all particles
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
 
-            requestAnimationFrame(animate);
+            requestAnimationFrame(loop);
         }
 
-        // Kick off the loop
-        animate();
+        // Run
+        init();
+        loop();
     </script>
 </body>
 </html>
