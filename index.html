@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>I Love You - Snaking Particle Heart</title>
+    <title>3D Particle Heart & Snake Ring</title>
     <style>
         * {
             margin: 0;
@@ -17,7 +17,7 @@
             justify-content: center;
             align-items: center;
             height: 100vh;
-            font-family: 'Courier New', Courier, monospace;
+            font-family: 'Arial', sans-serif;
         }
         canvas {
             position: absolute;
@@ -29,7 +29,7 @@
         }
         .text-container {
             position: absolute;
-            top: 10%;
+            top: 8%;
             text-align: center;
             z-index: 2;
             width: 100%;
@@ -37,7 +37,6 @@
         }
         h1 {
             color: #4da6ff;
-            font-family: 'Arial', sans-serif;
             font-size: 3.5rem;
             font-style: italic;
             font-weight: bold;
@@ -46,16 +45,11 @@
             animation: pulse 2s ease-in-out infinite alternate;
         }
         @keyframes pulse {
-            from {
-                text-shadow: 0 0 10px #0066ff, 0 0 20px #0066ff, 0 0 30px #0044cc;
-                transform: scale(1);
-            }
-            to {
-                text-shadow: 0 0 15px #3399ff, 0 0 30px #0066ff, 0 0 50px #0044cc, 0 0 70px #002288;
-                transform: scale(1.03);
-            }
+            from { text-shadow: 0 0 10px #0066ff, 0 0 20px #0066ff; transform: scale(1); }
+            to { text-shadow: 0 0 20px #3399ff, 0 0 40px #0066ff, 0 0 60px #002288; transform: scale(1.02); }
         }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
@@ -63,122 +57,170 @@
         <h1>I Love You</h1>
     </div>
 
-    <canvas id="heartCanvas"></canvas>
-
     <script>
-        const canvas = document.getElementById('heartCanvas');
-        const ctx = canvas.getContext('2d');
+        // --- 1. SETUP THREE.JS SCENE ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 30;
+        camera.position.y = 5;
 
-        function resize() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        window.addEventListener('resize', resize);
-        resize();
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
 
-        // Point class from original image layout
-        var Point = (function () {
-            function Point(x, y) {
-                this.x = (typeof x !== 'undefined') ? x : 0;
-                this.y = (typeof y !== 'undefined') ? y : 0;
-            }
-            Point.prototype.clone = function () {
-                return new Point(this.x, this.y);
-            };
-            return Point;
-        })();
+        // --- 2. CREATE 3D PARTICLE HEART ---
+        const heartGroup = new THREE.Group();
+        scene.add(heartGroup);
 
-        const particles = [];
-        const particleCount = 750; // Slighter higher density for smoother snake lines
-        const baseColor = { r: 60, g: 150, b: 255 }; 
+        const particleCount = 2500;
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const initialSizes = new Float32Array(particleCount);
 
-        // Heart mathematics
-        function getHeartPoint(t) {
-            const x = 16 * Math.pow(Math.sin(t), 3);
-            const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
-            return new Point(x * 12, -y * 12);
-        }
-
-        // Initialize particles
+        // Mathematical Formula for a solid 3D Heart Shape
         for (let i = 0; i < particleCount; i++) {
-            const t = Math.random() * Math.PI * 2;
-            const targetPos = getHeartPoint(t);
-            const innerScatter = Math.random(); // Distributes particles throughout inner structure
-            
-            particles.push({
-                baseX: targetPos.x * innerScatter,
-                baseY: targetPos.y * innerScatter,
-                x: targetPos.x * innerScatter,
-                y: targetPos.y * innerScatter,
-                size: Math.random() * 2 + 0.6,
-                alpha: Math.random(),
-                vs: Math.random() * 0.03 + 0.015,
-                phaseOffset: Math.random() * Math.PI * 2 // Unique starting wave position for variation
-            });
+            // Sample uniformly across the heart's internal volume
+            const u = Math.random() * Math.PI * 2;
+            const v = (Math.random() - 0.5) * Math.PI;
+            const r = Math.pow(Math.random(), 1/3); // Distributed evenly inside
+
+            // Parametric 3D Heart Equations
+            const x = 16 * Math.pow(Math.sin(u), 3) * Math.cos(v);
+            const y = (13 * Math.cos(u) - 5 * Math.cos(2*u) - 2 * Math.cos(3*u) - Math.cos(4*u));
+            const z = 15 * Math.sin(u) * Math.sin(v); // Depth dimension
+
+            // Apply scale and distribution factor
+            positions[i * 3] = x * r * 0.5;
+            positions[i * 3 + 1] = y * r * 0.5;
+            positions[i * 3 + 2] = z * r * 0.5;
+
+            initialSizes[i] = Math.random() * 2 + 1;
         }
 
-        let time = 0;
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+        // Creating glowing particle texture via Canvas code natively
+        const createParticleTexture = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 16;
+            canvas.height = 16;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(8, 8, 0, 8, 8, 8);
+            grad.addColorStop(0, 'rgba(255,255,255,1)');
+            grad.addColorStop(0.3, 'rgba(0,150,255,0.8)');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 16, 16);
+            return new THREE.CanvasTexture(canvas);
+        };
+
+        const particleMaterial = new THREE.PointsMaterial({
+            color: 0x33aaff,
+            size: 0.4,
+            map: createParticleTexture(),
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            transparent: true
+        });
+
+        const heartParticles = new THREE.Points(geometry, particleMaterial);
+        heartGroup.add(heartParticles);
+        // Center alignment tweak
+        heartGroup.position.y = 2; 
+
+        // --- 3. CREATE THE SNAKE RING (TWISTING ORBIT) ---
+        const ringParticleCount = 400;
+        const ringGeometry = new THREE.BufferGeometry();
+        const ringPositions = new Float32Array(ringParticleCount * 3);
+
+        const ringMaterial = new THREE.PointsMaterial({
+            color: 0x00ffff,
+            size: 0.35,
+            map: createParticleTexture(),
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            depthWrite: false
+        });
+
+        const snakeRing = new THREE.Points(ringGeometry, ringMaterial);
+        scene.add(snakeRing);
+
+        // --- 4. GLOWING BASE REFLECTION POOL ---
+        const floorGeo = new THREE.PlaneGeometry(35, 35);
+        const floorCanvas = document.createElement('canvas');
+        floorCanvas.width = 256;
+        floorCanvas.height = 256;
+        const floorCtx = floorCanvas.getContext('2d');
+        const floorGrad = floorCtx.createRadialGradient(128, 128, 0, 128, 128, 110);
+        floorGrad.addColorStop(0, 'rgba(0, 102, 255, 0.45)');
+        floorGrad.addColorStop(0.5, 'rgba(0, 50, 200, 0.15)');
+        floorGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        floorCtx.fillStyle = floorGrad;
+        floorCtx.fillRect(0, 0, 256, 256);
+
+        const floorMat = new THREE.MeshBasicMaterial({
+            map: new THREE.CanvasTexture(floorCanvas),
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            depthWrite: false
+        });
+        const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+        floorMesh.rotation.x = -Math.PI / 2;
+        floorMesh.position.y = -8;
+        scene.add(floorMesh);
+
+
+        // --- 5. ANIMATION LOOP ---
+        let clock = new THREE.Clock();
 
         function animate() {
-            // Adjust opacity trailing for a subtle motion blur "slither" tail
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height * 0.45;
-            time += 0.04; // Controls speed of the slithering snake animation
-
-            // 1. Base Reflection Pool Glow
-            const gradient = ctx.createRadialGradient(
-                centerX, centerY + 280, 10, 
-                centerX, centerY + 280, 160
-            );
-            gradient.addColorStop(0, 'rgba(0, 132, 255, 0.35)');
-            gradient.addColorStop(0.5, 'rgba(0, 102, 255, 0.12)');
-            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            
-            ctx.fillStyle = gradient;
-            ctx.beginPath();
-            ctx.ellipse(centerX, centerY + 270, 170, 25, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            // 2. Render Heart with Wave-Slither motion
-            particles.forEach(p => {
-                
-                // "Snake" wave math: Creates horizontal ripples traveling from top to bottom
-                // Math.sin(time + Y-coordinate factor) * wave frequency 
-                const snakeWaveX = Math.sin(time + (p.baseY * 0.04) + p.phaseOffset * 0.1) * 15;
-                const snakeWaveY = Math.cos(time + (p.baseX * 0.04)) * 8;
-
-                // Combine the heart structure coordinates with the live wavy slither offsets
-                const targetX = p.baseX + snakeWaveX;
-                const targetY = p.baseY + snakeWaveY;
-
-                // Interpolate positioning smoothly (Lerping animation)
-                p.x += (targetX - p.x) * 0.1;
-                p.y += (targetY - p.y) * 0.1;
-
-                // Constant twinkling twinkle code
-                p.alpha += p.vs;
-                if (p.alpha > 1 || p.alpha < 0.2) {
-                    p.vs = -p.vs;
-                }
-
-                // Render individual particle glow maps
-                ctx.fillStyle = `rgba(${baseColor.r}, ${baseColor.g + Math.floor(Math.random()*40)}, 255, ${p.alpha})`;
-                ctx.shadowBlur = Math.random() * 8 + 3;
-                ctx.shadowColor = 'rgba(0, 110, 255, 0.8)';
-                
-                ctx.beginPath();
-                ctx.arc(centerX + p.x, centerY + p.y, p.size, 0, Math.PI * 2);
-                ctx.fill();
-            });
-
-            // Performance clean up
-            ctx.shadowBlur = 0;
-
             requestAnimationFrame(animate);
+
+            const elapsedTime = clock.getElapsedTime();
+
+            // A. Smoothly rotate the 3D heart matrix
+            heartGroup.rotation.y = elapsedTime * 0.4;
+            // Gentle floating vertical bobbing
+            heartGroup.position.y = 2 + Math.sin(elapsedTime * 1.5) * 0.5;
+
+            // Subtle intrinsic shimmering of internal particles
+            const positionsArr = heartParticles.geometry.attributes.position.array;
+            for (let i = 0; i < particleCount; i++) {
+                positionsArr[i * 3 + 1] += Math.sin(elapsedTime * 2 + i) * 0.002; // Small localized jitter
+            }
+            heartParticles.geometry.attributes.position.needsUpdate = true;
+
+            // B. Animate the "Snake" Energy Ring
+            // It twists dynamically in a wave pattern around the base floor
+            const ringPosArr = new Float32Array(ringParticleCount * 3);
+            const radius = 11; 
+
+            for (let i = 0; i < ringParticleCount; i++) {
+                // Spread points around a circle perimeter
+                const angle = (i / ringParticleCount) * Math.PI * 2 + (elapsedTime * 0.8);
+                
+                // Introduce the wavy "snaking" calculation using sine variations over time
+                const snakeWave = Math.sin(i * 0.08 - elapsedTime * 5) * 1.2;
+                const dynamicRadius = radius + Math.cos(i * 0.05 + elapsedTime * 2) * 0.6;
+
+                // X and Z map out the horizontal ring path
+                ringPosArr[i * 3] = Math.cos(angle) * dynamicRadius;
+                // Y maps out the vertical snake slither right above the floor reflection
+                ringPosArr[i * 3 + 1] = -7.5 + snakeWave; 
+                ringPosArr[i * 3 + 2] = Math.sin(angle) * dynamicRadius;
+            }
+            snakeRing.geometry.setAttribute('position', new THREE.BufferAttribute(ringPosArr, 3));
+
+            renderer.render(scene, camera);
         }
+
+        // Handle browser window scaling smoothly
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
 
         animate();
     </script>
