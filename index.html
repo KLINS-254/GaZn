@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>I Love You - Particle Heart</title>
+    <title>I Love You - Snaking Particle Heart</title>
     <style>
         * {
             margin: 0;
@@ -69,7 +69,6 @@
         const canvas = document.getElementById('heartCanvas');
         const ctx = canvas.getContext('2d');
 
-        // Set canvas sizing
         function resize() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
@@ -77,7 +76,7 @@
         window.addEventListener('resize', resize);
         resize();
 
-        // The exact Point class logic inspired by the image snippet
+        // Point class from original image layout
         var Point = (function () {
             function Point(x, y) {
                 this.x = (typeof x !== 'undefined') ? x : 0;
@@ -89,92 +88,93 @@
             return Point;
         })();
 
-        // Particle configuration
         const particles = [];
-        const particleCount = 600;
-        const baseColor = { r: 50, g: 140, b: 255 }; // Electric blue
+        const particleCount = 750; // Slighter higher density for smoother snake lines
+        const baseColor = { r: 60, g: 150, b: 255 }; 
 
-        // Mathematical Heart Shape function (Parametric)
+        // Heart mathematics
         function getHeartPoint(t) {
-            // Standard heart curve equations scaled up
             const x = 16 * Math.pow(Math.sin(t), 3);
             const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
-            return new Point(x * 12, -y * 12); // Negative y to flip it right-side up
+            return new Point(x * 12, -y * 12);
         }
 
         // Initialize particles
         for (let i = 0; i < particleCount; i++) {
-            // Distribute points across the parametric heart curve parameter (0 to 2*PI)
             const t = Math.random() * Math.PI * 2;
             const targetPos = getHeartPoint(t);
-            
-            // Give them some random offset internal to the heart shape so it looks filled
-            const innerScatter = Math.random();
+            const innerScatter = Math.random(); // Distributes particles throughout inner structure
             
             particles.push({
                 baseX: targetPos.x * innerScatter,
                 baseY: targetPos.y * innerScatter,
                 x: targetPos.x * innerScatter,
                 y: targetPos.y * innerScatter,
-                size: Math.random() * 2 + 0.5,
-                // Individual shimmer physics
-                speedX: (Math.random() - 0.5) * 0.5,
-                speedY: (Math.random() - 0.5) * 0.5,
+                size: Math.random() * 2 + 0.6,
                 alpha: Math.random(),
-                vs: Math.random() * 0.02 + 0.01 // Shimmer speed
+                vs: Math.random() * 0.03 + 0.015,
+                phaseOffset: Math.random() * Math.PI * 2 // Unique starting wave position for variation
             });
         }
 
-        // Main Animation Loop
+        let time = 0;
+
         function animate() {
-            // Creates a slight trailing blur effect
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+            // Adjust opacity trailing for a subtle motion blur "slither" tail
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             const centerX = canvas.width / 2;
-            const centerY = canvas.height * 0.45; // Centered slightly higher up
+            const centerY = canvas.height * 0.45;
+            time += 0.04; // Controls speed of the slithering snake animation
 
-            // 1. Draw the Bottom Reflection/Glow pool
+            // 1. Base Reflection Pool Glow
             const gradient = ctx.createRadialGradient(
                 centerX, centerY + 280, 10, 
-                centerX, centerY + 280, 150
+                centerX, centerY + 280, 160
             );
-            gradient.addColorStop(0, 'rgba(0, 132, 255, 0.4)');
-            gradient.addColorStop(0.4, 'rgba(0, 102, 255, 0.15)');
+            gradient.addColorStop(0, 'rgba(0, 132, 255, 0.35)');
+            gradient.addColorStop(0.5, 'rgba(0, 102, 255, 0.12)');
             gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
             
             ctx.fillStyle = gradient;
             ctx.beginPath();
-            ctx.ellipse(centerX, centerY + 270, 160, 25, 0, 0, Math.PI * 2);
+            ctx.ellipse(centerX, centerY + 270, 170, 25, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // 2. Draw and update particles
+            // 2. Render Heart with Wave-Slither motion
             particles.forEach(p => {
-                // Shimmering jitter effect
-                p.x += p.speedX + (Math.sin(Date.now() * 0.005 + p.baseX) * 0.1);
-                p.y += p.speedY + (Math.cos(Date.now() * 0.005 + p.baseY) * 0.1);
                 
-                // Keep particles anchored near their home coordinates
-                p.x += (p.baseX - p.x) * 0.05;
-                p.y += (p.baseY - p.y) * 0.05;
+                // "Snake" wave math: Creates horizontal ripples traveling from top to bottom
+                // Math.sin(time + Y-coordinate factor) * wave frequency 
+                const snakeWaveX = Math.sin(time + (p.baseY * 0.04) + p.phaseOffset * 0.1) * 15;
+                const snakeWaveY = Math.cos(time + (p.baseX * 0.04)) * 8;
 
-                // Alternate transparency for twinkling sparkle
+                // Combine the heart structure coordinates with the live wavy slither offsets
+                const targetX = p.baseX + snakeWaveX;
+                const targetY = p.baseY + snakeWaveY;
+
+                // Interpolate positioning smoothly (Lerping animation)
+                p.x += (targetX - p.x) * 0.1;
+                p.y += (targetY - p.y) * 0.1;
+
+                // Constant twinkling twinkle code
                 p.alpha += p.vs;
                 if (p.alpha > 1 || p.alpha < 0.2) {
                     p.vs = -p.vs;
                 }
 
-                // Render particle with bright cyan/blue glow
-                ctx.fillStyle = `rgba(${baseColor.r + Math.floor(Math.random()*50)}, ${baseColor.g + Math.floor(Math.random()*50)}, 255, ${p.alpha})`;
-                ctx.shadowBlur = Math.random() * 10 + 2;
-                ctx.shadowColor = 'rgba(0, 102, 255, 0.8)';
+                // Render individual particle glow maps
+                ctx.fillStyle = `rgba(${baseColor.r}, ${baseColor.g + Math.floor(Math.random()*40)}, 255, ${p.alpha})`;
+                ctx.shadowBlur = Math.random() * 8 + 3;
+                ctx.shadowColor = 'rgba(0, 110, 255, 0.8)';
                 
                 ctx.beginPath();
                 ctx.arc(centerX + p.x, centerY + p.y, p.size, 0, Math.PI * 2);
                 ctx.fill();
             });
 
-            // Reset shadow properties so it doesn't bog down performance elsewhere
+            // Performance clean up
             ctx.shadowBlur = 0;
 
             requestAnimationFrame(animate);
