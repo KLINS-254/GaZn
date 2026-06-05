@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Joy & Ticoh - Fixed Initialization</title>
+    <title>Laser Drawn Heart - Joy & Ticoh</title>
     <style>
         * {
             margin: 0;
@@ -14,7 +14,7 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #050505;
+            background-color: #030303;
             font-family: sans-serif;
         }
         canvas {
@@ -32,122 +32,131 @@
         const canvas = document.getElementById('particleCanvas');
         const ctx = canvas.getContext('2d');
 
-        const PARTICLE_COUNT = 8000; 
+        const PARTICLE_COUNT = 9000;
         const COLORS = [
-            'rgba(255, 40, 80, 0.95)',   
-            'rgba(40, 255, 130, 0.95)',  
-            'rgba(180, 40, 255, 0.95)',  
-            'rgba(255, 220, 40, 0.95)',  
-            'rgba(40, 220, 255, 0.95)'   
+            'rgba(255, 40, 100, 0.95)',   // Hot Pink / Red
+            'rgba(40, 255, 140, 0.95)',   // Neon Green
+            'rgba(190, 60, 255, 0.95)',   // Purple
+            'rgba(255, 210, 40, 0.95)',   // Gold Yellow
+            'rgba(40, 230, 255, 0.95)'    // Electric Cyan
         ];
 
-        let width = 0;
-        let height = 0;
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+        
         let currentState = 0; 
         let stateTimer = 0;
         let particles = [];
+        
+        // Laser path tracing configurations
+        let laserProgress = 0;
+        let heartScale = Math.min(width, height) / 38;
 
         const targets = {
-            text: [],
-            heart: []
+            joy: [],
+            ticoh: [],
+            heartOutline: []
         };
 
-        // Parametric Heart Formula
+        // Standard parametric heart formula
         function getHeartPoint(t, scale) {
             const x = 16 * Math.pow(Math.sin(t), 3);
             const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
             return { x: x * scale, y: -y * scale };
         }
 
-        // Guarantees clean coordinates even if browser lags at loading
         function generateTargets() {
-            targets.text = [];
-            targets.heart = [];
+            targets.joy = [];
+            targets.ticoh = [];
+            targets.heartOutline = [];
 
             width = canvas.width = window.innerWidth;
             height = canvas.height = window.innerHeight;
-
-            // Secure minimum window sizing fallback
-            if(width === 0) width = canvas.width = 800;
-            if(height === 0) height = canvas.height = 600;
+            heartScale = Math.min(width, height) / 38;
 
             const offCanvas = document.createElement('canvas');
             const offCtx = offCanvas.getContext('2d');
             offCanvas.width = width;
             offCanvas.height = height;
-            
-            const fontSize = Math.min(width / 7, 90);
+
+            // Compute font sizes dynamically based on screen real estate
+            const fontSize = Math.min(width / 12, 55);
             offCtx.font = `bold ${fontSize}px sans-serif`;
-            offCtx.textAlign = 'center';
+            offCtx.fillStyle = '#ffffff';
             offCtx.textBaseline = 'middle';
-            offCtx.fillStyle = '#ffffff'; 
-            offCtx.fillText("Joy ❤ Ticoh", width / 2, height / 2);
+
+            // Draw "Joy" on the Left side of the screen context
+            offCtx.textAlign = 'right';
+            offCtx.fillText("Joy", width / 2 - (heartScale * 5), height / 2);
+
+            // Draw "Ticoh" on the Right side of the screen context
+            offCtx.textAlign = 'left';
+            offCtx.fillText("Ticoh", width / 2 + (heartScale * 5), height / 2);
 
             try {
                 const imgData = offCtx.getImageData(0, 0, width, height).data;
-                const step = width < 768 ? 2 : 3; 
+                const step = 2; 
 
                 for (let y = 0; y < height; y += step) {
                     for (let x = 0; x < width; x += step) {
                         const index = (y * width + x) * 4;
-                        // Checking Alpha channel or Red channel for structural integrity
-                        if (imgData[index + 3] > 128 || imgData[index] > 200) { 
-                            targets.text.push({ x: x, y: y });
+                        if (imgData[index] > 200) {
+                            // Split extracted coordinate points into respective side targets
+                            if (x < width / 2) {
+                                targets.joy.push({ x: x, y: y });
+                            } else {
+                                targets.ticoh.push({ x: x, y: y });
+                            }
                         }
                     }
                 }
             } catch (e) {
-                console.error("Scanning restriction: ", e);
+                console.error(e);
             }
 
-            // Absolute structural fallback if device restricts canvas reading
-            if (targets.text.length === 0) {
-                for (let i = 0; i < PARTICLE_COUNT; i++) {
-                    targets.text.push({
-                        x: width / 2 + (Math.random() - 0.5) * (width * 0.7),
-                        y: height / 2 + (Math.random() - 0.5) * 50
-                    });
-                }
-            }
-
-            // Build structural heart targets
-            const heartScale = Math.min(width, height) / 42;
+            // Fill pre-mapped standard heart outer loop array positions
             for (let i = 0; i < PARTICLE_COUNT; i++) {
                 const t = Math.PI * 2 * (i / PARTICLE_COUNT);
-                const basePoint = getHeartPoint(t, heartScale);
-                const innerFactor = Math.random() * 0.35 + 0.65; 
-                
-                targets.heart.push({ 
-                    x: width / 2 + basePoint.x * innerFactor, 
-                    y: height / 2 + basePoint.y * innerFactor 
+                const pt = getHeartPoint(t, heartScale);
+                targets.heartOutline.push({
+                    x: width / 2 + pt.x,
+                    y: height / 2 + pt.y
                 });
             }
 
-            targets.text.sort(() => Math.random() - 0.5);
+            // Shuffle text buffers for seamless conversion patterns
+            targets.joy.sort(() => Math.random() - 0.5);
+            targets.ticoh.sort(() => Math.random() - 0.5);
         }
 
         class Particle {
             constructor() {
-                this.x = Math.random() * (window.innerWidth || 800);
-                this.y = Math.random() * (window.innerHeight || 600);
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
                 this.vx = (Math.random() - 0.5) * 2;
                 this.vy = (Math.random() - 0.5) * 2;
-                this.radius = Math.random() * 1.5 + 0.8;
+                this.radius = Math.random() * 1.6 + 0.6;
                 this.color = COLORS[Math.floor(Math.random() * COLORS.length)];
                 this.ease = 0.08;
             }
 
             update(index) {
                 if (currentState === 0) {
-                    // Phase 0: 1.5s Starfield Delay
+                    // Phase 0: 1.5s Initial Starfield Drift
                     this.vx *= 0.99;
                     this.vy *= 0.99;
                     if (this.x < 0 || this.x > width) this.vx *= -1;
                     if (this.y < 0 || this.y > height) this.vy *= -1;
                 }
                 else if (currentState === 1) {
-                    // Phase 1: Lock into Text
-                    const target = targets.text[index % targets.text.length];
+                    // Phase 1: Draw Names divided on opposite sides of the screen center
+                    let target;
+                    if (index % 2 === 0 && targets.joy.length > 0) {
+                        target = targets.joy[Math.floor(index / 2) % targets.joy.length];
+                    } else if (targets.ticoh.length > 0) {
+                        target = targets.ticoh[Math.floor(index / 2) % targets.ticoh.length];
+                    }
+
                     if (target) {
                         this.vx += (target.x - this.x) * this.ease;
                         this.vy += (target.y - this.y) * this.ease;
@@ -156,17 +165,18 @@
                     this.vy *= 0.82;
                 } 
                 else if (currentState === 2) {
-                    // Phase 2: Screen Explosion Burst
+                    // Phase 2: Full Screen Dispersal Explosion
                     this.vx *= 0.99; 
                     this.vy *= 0.99;
                     if (this.x < 0 || this.x > width) this.vx *= -1;
                     if (this.y < 0 || this.y > height) this.vy *= -1;
                 } 
                 else if (currentState === 3) {
-                    // Phase 3: Morph into Heart
-                    const target = targets.heart[index % targets.heart.length];
+                    // Phase 3: Pull together into the drawn Heart outline
+                    const target = targets.heartOutline[index % targets.heartOutline.length];
                     if (target) {
-                        const beat = 1 + Math.sin(Date.now() * 0.005) * 0.04;
+                        // Gentle breathing scale factor calculation
+                        const beat = 1 + Math.sin(Date.now() * 0.005) * 0.03;
                         const centerX = width / 2;
                         const centerY = height / 2;
                         
@@ -193,7 +203,7 @@
 
             explode() {
                 const angle = Math.random() * Math.PI * 2;
-                const force = Math.random() * 25 + 8; 
+                const force = Math.random() * 24 + 8; 
                 this.vx = Math.cos(angle) * force;
                 this.vy = Math.sin(angle) * force;
             }
@@ -204,50 +214,92 @@
             }
         }
 
-        // Dedicated Init engine wrapped inside a window load listener 
         function init() {
             generateTargets();
-            
             particles = [];
             for (let i = 0; i < PARTICLE_COUNT; i++) {
                 particles.push(new Particle());
             }
-            
-            // Starts loop calculation safely
             animate();
         }
 
         window.addEventListener('load', init);
-        window.addEventListener('resize', generateTargets);
+        window.addEventListener('resize', () => {
+            generateTargets();
+        });
 
         function animate() {
-            ctx.fillStyle = 'rgba(5, 5, 5, 0.22)';
+            // Neon trail persistence logic
+            ctx.fillStyle = 'rgba(3, 3, 3, 0.22)';
             ctx.fillRect(0, 0, width, height);
 
             stateTimer++;
 
+            // --- State Flow Operations ---
             if (currentState === 0 && stateTimer > 90) {
+                // 1.5s Initial Star drift ends -> Move to Names
                 currentState = 1;
                 stateTimer = 0;
             } 
             else if (currentState === 1 && stateTimer > 210) {
+                // 3.5s Name display ends -> Trigger Full Screen Explosion
                 currentState = 2;
                 stateTimer = 0;
                 particles.forEach(p => p.explode());
+                laserProgress = 0; // Reset laser tracking head
             } 
             else if (currentState === 2 && stateTimer > 150) {
+                // 2.5s Explosion ends -> Build Self-Drawing Laser Heart
                 currentState = 3;
                 stateTimer = 0;
             } 
             else if (currentState === 3 && stateTimer > 450) {
+                // 7.5s Heart presentation finishes -> Cycle back to start drift delay
                 currentState = 0;
                 stateTimer = 0;
                 particles.forEach(p => p.resetDrift());
             }
 
+            // --- Particle Render Phase ---
             for (let i = 0; i < particles.length; i++) {
                 particles[i].update(i);
                 particles[i].draw();
+            }
+
+            // --- Active Neon Laser Drawing Overlay ---
+            if (currentState === 3) {
+                // Accelerate drawing progress linearly over time frames
+                if (laserProgress < Math.PI * 2) {
+                    laserProgress += 0.05; 
+                }
+
+                ctx.save();
+                ctx.lineWidth = 4.5;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                
+                // Create glowing bloom shadows for the neon pen streak
+                ctx.shadowBlur = 16;
+                ctx.shadowColor = '#ff2864';
+
+                ctx.beginPath();
+                // Travel along parametric coordinates dynamically
+                for (let t = 0; t <= laserProgress; t += 0.02) {
+                    const pt = getHeartPoint(t - Math.PI, heartScale); // Calibrate anchor origin point
+                    const lx = width / 2 + pt.x;
+                    const ly = height / 2 + pt.y;
+                    
+                    if (t === 0) {
+                        ctx.moveTo(lx, ly);
+                    } else {
+                        ctx.lineTo(lx, ly);
+                    }
+                }
+                
+                // Set color scheme matches to your purple/pink reference screenshots
+                ctx.strokeStyle = 'rgba(255, 60, 160, 0.95)';
+                ctx.stroke();
+                ctx.restore();
             }
 
             requestAnimationFrame(animate);
