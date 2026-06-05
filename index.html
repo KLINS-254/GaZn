@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Glowing Particle Heart Animation</title>
+    <title>Color-Changing Particle Heart Animation</title>
     <style>
         * {
             margin: 0;
@@ -32,7 +32,6 @@
         const canvas = document.getElementById('heartCanvas');
         const ctx = canvas.getContext('2d');
 
-        // Set canvas sizing
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
@@ -40,41 +39,34 @@
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
 
-        // Animation configuration
         const config = {
-            heartScale: 14,          // Size of the heart
-            particleCount: 4,       // Particles spawned per frame during drawing
-            color: 'hsl(280, 100%, 70%)', // Purple/Pink neon theme matching the images
-            glowColor: 'rgba(180, 50, 255, 0.4)'
+            heartScale: 14,          
+            particleCount: 5,       // Slightly more particles for richer dust clouds
         };
 
-        // Heart parametric equation helpers
-        // Draws from top-center, arching around symmetrically using an angle 't'
         function getHeartPoint(t) {
-            // Standard parametric heart formula shifted to trace beautifully
             const x = 16 * Math.pow(Math.sin(t), 3);
             const y = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
             return { x, y };
         }
 
         class Particle {
-            constructor(x, y, targetX, targetY) {
+            constructor(x, y, color) {
                 this.x = x;
                 this.y = y;
-                // Add explosion randomness to match the scattered dust look
-                this.vx = (Math.random() - 0.5) * 6 + (targetX - x) * 0.05;
-                this.vy = (Math.random() - 0.5) * 6 + (targetY - y) * 0.05;
-                this.size = Math.random() * 2 + 1;
+                this.color = color; // Captures the exact color of the beam at creation time
+                this.vx = (Math.random() - 0.5) * 7;
+                this.vy = (Math.random() - 0.5) * 7;
+                this.size = Math.random() * 2.5 + 1;
                 this.alpha = 1;
-                this.decay = Math.random() * 0.015 + 0.005;
+                this.decay = Math.random() * 0.012 + 0.005;
             }
 
             update() {
                 this.x += this.vx;
                 this.y += this.vy;
-                // Simulate drag/friction slowing them down into position
-                this.vx *= 0.95;
-                this.vy *= 0.95;
+                this.vx *= 0.94;
+                this.vy *= 0.94;
                 this.alpha -= this.decay;
             }
 
@@ -82,8 +74,8 @@
                 ctx.save();
                 ctx.globalAlpha = this.alpha;
                 ctx.shadowBlur = 10;
-                ctx.shadowColor = config.color;
-                ctx.fillStyle = config.color;
+                ctx.shadowColor = this.color;
+                ctx.fillStyle = this.color;
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
                 ctx.fill();
@@ -95,48 +87,57 @@
         let heartPoints = [];
         let traceIndex = 0;
         
-        // Pre-calculate the drawing path tracing from top to bottom
-        // We split it into two halves to draw simultaneously from the top center down to the point
         for (let t = 0; t <= Math.PI; t += 0.01) {
             heartPoints.push(t);
         }
 
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height / 2 - 30;
         const finalizedPath = [];
 
         function animate() {
-            // Creates the "trailing dust" effect by not clearing the screen entirely
+            // Keep trails dark and smooth
             ctx.fillStyle = 'rgba(5, 5, 8, 0.12)'; 
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2 - 20;
 
-            // 1. Draw/Trace Phase
+            // 1. Trace Phase with dynamic color shifting
             if (traceIndex < heartPoints.length) {
                 const t = heartPoints[traceIndex];
                 
-                // Left Arc point
+                // Calculate color shifting (0% progress = Green, 50% = Orange/Yellow, 100% = Pink/Purple)
+                const progress = traceIndex / heartPoints.length;
+                // Green starts around hue 130, Orange is ~30, Purple is ~290
+                // This formula cycles smoothly: Green (130) -> Yellow/Orange (40) -> Pink/Purple (300)
+                let hue;
+                if (progress < 0.5) {
+                    // Transition from Green (130) down to Orange (30)
+                    hue = 130 - (progress * 2) * 100;
+                } else {
+                    // Transition from Orange (30) up to Purple (290)
+                    hue = 30 + ((progress - 0.5) * 2) * 260;
+                }
+                
+                const currentColor = `hsl(${hue}, 100%, 65%)`;
+
                 const ptLeft = getHeartPoint(-t);
                 const xl = centerX + ptLeft.x * config.heartScale;
                 const yl = centerY + ptLeft.y * config.heartScale;
 
-                // Right Arc point
                 const ptRight = getHeartPoint(t);
                 const xr = centerX + ptRight.x * config.heartScale;
                 const yr = centerY + ptRight.y * config.heartScale;
 
-                // Save for the permanent solid line glow later
-                finalizedPath.push({xl, yl, xr, yr});
+                // Save coordinates along with its specific color
+                finalizedPath.push({xl, yl, xr, yr, color: currentColor});
 
-                // Spawn burst particles at the current leading edges
+                // Spawn dust matching the current color segment
                 for (let i = 0; i < config.particleCount; i++) {
-                    particles.push(new Particle(xl, yl, xl, yl));
-                    particles.push(new Particle(xr, yr, xr, yr));
+                    particles.push(new Particle(xl, yl, currentColor));
+                    particles.push(new Particle(xr, yr, currentColor));
                 }
 
-                // Add a bright leading "head" spark
+                // Bright leading white spark
                 ctx.save();
                 ctx.shadowBlur = 20;
                 ctx.shadowColor = '#fff';
@@ -147,48 +148,50 @@
                 ctx.fill();
                 ctx.restore();
 
-                traceIndex += 2; // Adjust speed of tracing here
+                traceIndex += 1; 
             }
 
-            // 2. Update and draw burst particles
+            // 2. Update and draw existing particles
             particles.forEach((p, index) => {
                 p.update();
                 p.draw();
                 if (p.alpha <= 0) particles.splice(index, 1);
             });
 
-            // 3. Draw the forming neon solid core
+            // 3. Draw the solid glowing multicolored neon line
             if (finalizedPath.length > 0) {
                 ctx.save();
                 ctx.lineWidth = 3;
-                ctx.strokeStyle = config.color;
-                ctx.shadowBlur = 15;
-                ctx.shadowColor = config.color;
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
 
-                // Draw Left Side
-                ctx.beginPath();
-                finalizedPath.forEach((pt, i) => {
-                    if(i === 0) ctx.moveTo(pt.xl, pt.yl);
-                    else ctx.lineTo(pt.xl, pt.yl);
-                });
-                ctx.stroke();
+                // We segment the line drawing so each tiny line piece preserves its exact color stage
+                for (let i = 1; i < finalizedPath.length; i++) {
+                    const prev = finalizedPath[i - 1];
+                    const curr = finalizedPath[i];
 
-                // Draw Right Side
-                ctx.beginPath();
-                finalizedPath.forEach((pt, i) => {
-                    if(i === 0) ctx.moveTo(pt.xr, pt.yr);
-                    else ctx.lineTo(pt.xr, pt.yr);
-                });
-                ctx.stroke();
+                    ctx.strokeStyle = curr.color;
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = curr.color;
+
+                    // Draw Left segment
+                    ctx.beginPath();
+                    ctx.moveTo(prev.xl, prev.yl);
+                    ctx.lineTo(curr.xl, curr.yl);
+                    ctx.stroke();
+
+                    // Draw Right segment
+                    ctx.beginPath();
+                    ctx.moveTo(prev.xr, prev.yr);
+                    ctx.lineTo(curr.xr, curr.yr);
+                    ctx.stroke();
+                }
                 ctx.restore();
             }
 
             requestAnimationFrame(animate);
         }
 
-        // Start the animation
         animate();
     </script>
 </body>
