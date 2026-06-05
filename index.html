@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Heart & Halo Snake Ring</title>
+    <title>3D Round Particle Heart & Halo</title>
     <style>
         * {
             margin: 0;
@@ -61,96 +61,101 @@
         // --- 1. SETUP THREE.JS SCENE ---
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.z = 28;
-        camera.position.y = 4;
+        camera.position.z = 24;
+        camera.position.y = 2;
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(renderer.domElement);
 
-        // --- 2. CREATE A SOLID DEFINED 3D HEART ---
-        const heartGroup = new THREE.Group();
-        scene.add(heartGroup);
-
-        // Define a smooth 2D shape of a heart using standard Bezier curves
-        const heartShape = new THREE.Shape();
-        heartShape.moveTo(0, 3.7);
-        heartShape.bezierCurveTo(2.5, 7.5, 7.5, 7.5, 7.5, 3.7);
-        heartShape.bezierCurveTo(7.5, 0, 4.5, -4.5, 0, -8.5);
-        heartShape.bezierCurveTo(-4.5, -4.5, -7.5, 0, -7.5, 3.7);
-        heartShape.bezierCurveTo(-7.5, 7.5, -2.5, 7.5, 0, 3.7);
-
-        // Extrude the 2D heart shape into 3D geometry (giving it solid walls and depth)
-        const extrudeSettings = {
-            depth: 3,
-            bevelEnabled: true,
-            bevelSegments: 5,
-            steps: 2,
-            bevelSize: 1,
-            bevelThickness: 1
-        };
-
-        const heartGeometry = new THREE.ExtrudeGeometry(heartShape, extrudeSettings);
-        heartGeometry.center(); // Center geometry on its local axis
-        
-        // Use a mesh material that looks structural and clean, with a neon wireframe/point mesh overlay
-        const heartMaterial = new THREE.MeshBasicMaterial({
-            color: 0x0033aa,
-            wireframe: true,
-            transparent: true,
-            opacity: 0.4
-        });
-        
-        const heartMesh = new THREE.Mesh(heartGeometry, heartMaterial);
-        heartGroup.add(heartMesh);
-
-        // Add bright points on top of the mesh vertices so it still has a magical glow, but keeps the shape rigid
-        const pointMaterial = new THREE.PointsMaterial({
-            color: 0x33aaff,
-            size: 0.25,
-            transparent: true,
-            opacity: 0.8,
-            blending: THREE.AdditiveBlending
-        });
-        const heartPoints = new THREE.Points(heartGeometry, pointMaterial);
-        heartGroup.add(heartPoints);
-
-        // Flip it right side up and scale
-        heartGroup.rotation.z = Math.PI;
-        heartGroup.scale.set(1.1, 1.1, 1.1);
-        heartGroup.position.y = 3;
-
-        // --- 3. CREATE THE TIGHT SNAKE HALO ---
-        const ringParticleCount = 300;
-        const ringGeometry = new THREE.BufferGeometry();
-        
-        // Helper texture for glowing particles
-        const createParticleTexture = () => {
+        // Helper function to generate a bright star/glow texture
+        const createParticleTexture = (coreColor, glowColor) => {
             const canvas = document.createElement('canvas');
-            canvas.width = 16;
-            canvas.height = 16;
+            canvas.width = 32;
+            canvas.height = 32;
             const ctx = canvas.getContext('2d');
-            const grad = ctx.createRadialGradient(8, 8, 0, 8, 8, 8);
+            const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
             grad.addColorStop(0, 'rgba(255,255,255,1)');
-            grad.addColorStop(0.4, 'rgba(0,180,255,0.8)');
+            grad.addColorStop(0.2, coreColor);
+            grad.addColorStop(0.5, glowColor);
             grad.addColorStop(1, 'rgba(0,0,0,0)');
             ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, 16, 16);
+            ctx.fillRect(0, 0, 32, 32);
             return new THREE.CanvasTexture(canvas);
         };
 
-        const ringMaterial = new THREE.PointsMaterial({
-            color: 0x00ffff,
-            size: 0.4,
-            map: createParticleTexture(),
+        const heartTexture = createParticleTexture('rgba(100,200,255,0.8)', 'rgba(0,102,255,0.4)');
+        const haloTexture = createParticleTexture('rgba(0,255,255,0.9)', 'rgba(0,150,255,0.3)');
+
+        // --- 2. CREATE A PUFFY, ROUNDED 3D PARTICLE SURFACE HEART ---
+        const heartGroup = new THREE.Group();
+        scene.add(heartGroup);
+
+        const heartParticleCount = 4500;
+        const heartGeometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(heartParticleCount * 3);
+        const sizes = new Float32Array(heartParticleCount);
+
+        // Generate a true 3D spherical-morphed heart surface shell (Puffy & Round)
+        for (let i = 0; i < heartParticleCount; i++) {
+            // Spherical coordinate sampling
+            const theta = Math.PI * Math.random();
+            const phi = 2 * Math.PI * Math.random();
+
+            // 3D Taubin Heart Equation Surface Mapping
+            // Keeps the coordinates locked strictly to a rounded outer skin
+            const sinT = Math.sin(theta);
+            const cosT = Math.cos(theta);
+            const sinP = Math.sin(phi);
+            const cosP = Math.cos(phi);
+
+            // Parametric equations for a beautiful 3D puffy heart shape
+            let x = 12 * sinT * sinP;
+            let y = 11 * cosT - 3 * Math.pow(sinT * sinP, 2); // Pulls center down into a cleavage curve
+            let z = 7 * sinT * cosP * (1 - Math.abs(sinP) * 0.4); // Limits depth for round proportions
+
+            // Add slight organic noise to simulate a shimmering outer dust cloud
+            const noise = 1 + (Math.random() - 0.5) * 0.06;
+
+            positions[i * 3] = x * noise * 0.6;
+            positions[i * 3 + 1] = y * noise * 0.6; // Correct side up natively
+            positions[i * 3 + 2] = z * noise * 0.6;
+
+            sizes[i] = Math.random() * 0.4 + 0.15; // Star sizes
+        }
+
+        heartGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+        const heartMaterial = new THREE.PointsMaterial({
+            size: 0.45,
+            map: heartTexture,
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            depthWrite: false,
+            opacity: 0.95
+        });
+
+        const heartPoints = new THREE.Points(heartGeometry, heartMaterial);
+        heartGroup.add(heartPoints);
+        
+        // Position centering tweak
+        heartGroup.position.y = 1.5;
+
+        // --- 3. CREATE THE TIGHT SNAKE HALO ---
+        const haloParticleCount = 350;
+        const haloGeometry = new THREE.BufferGeometry();
+
+        const haloMaterial = new THREE.PointsMaterial({
+            size: 0.5,
+            map: haloTexture,
             blending: THREE.AdditiveBlending,
             transparent: true,
             depthWrite: false
         });
 
-        const snakeRing = new THREE.Points(ringGeometry, ringMaterial);
-        scene.add(snakeRing);
+        const snakeHalo = new THREE.Points(haloGeometry, haloMaterial);
+        scene.add(snakeHalo);
 
         // --- 4. GLOWING BASE REFLECTION POOL ---
         const floorGeo = new THREE.PlaneGeometry(25, 25);
@@ -159,8 +164,8 @@
         floorCanvas.height = 256;
         const floorCtx = floorCanvas.getContext('2d');
         const floorGrad = floorCtx.createRadialGradient(128, 128, 0, 128, 128, 100);
-        floorGrad.addColorStop(0, 'rgba(0, 102, 255, 0.5)');
-        floorGrad.addColorStop(0.6, 'rgba(0, 40, 150, 0.15)');
+        floorGrad.addColorStop(0, 'rgba(0, 130, 255, 0.45)');
+        floorGrad.addColorStop(0.6, 'rgba(0, 40, 180, 0.12)');
         floorGrad.addColorStop(1, 'rgba(0,0,0,0)');
         floorCtx.fillStyle = floorGrad;
         floorCtx.fillRect(0, 0, 256, 256);
@@ -176,7 +181,6 @@
         floorMesh.position.y = -7.5;
         scene.add(floorMesh);
 
-
         // --- 5. ANIMATION LOOP ---
         let clock = new THREE.Clock();
 
@@ -185,38 +189,39 @@
 
             const elapsedTime = clock.getElapsedTime();
 
-            // A. Continuous clean 3D heart rotation (Y-axis)
-            heartGroup.rotation.y = elapsedTime * 0.5;
+            // Smooth 3D Heart Rotation (Right-side up)
+            heartGroup.rotation.y = elapsedTime * 0.4;
             
-            // Weightless vertical floating bobbing effect
-            heartGroup.position.y = 3 + Math.sin(elapsedTime * 1.5) * 0.4;
+            // Weightless vertical floating bob
+            heartGroup.position.y = 1.5 + Math.sin(elapsedTime * 1.3) * 0.35;
 
-            // B. Animate the Tight "Snake Halo" Ring under the heart
-            const ringPosArr = new Float32Array(ringParticleCount * 3);
-            
-            // Smaller radius so it looks like a tight halo localized right under the point
-            const haloRadius = 5.5; 
+            // Twinkle Effect: Add subtle cosmic breathing variation to heart star sizes
+            heartMaterial.size = 0.45 + Math.sin(elapsedTime * 4) * 0.05;
 
-            for (let i = 0; i < ringParticleCount; i++) {
-                // Loop the points along a circle path over time
-                const angle = (i / ringParticleCount) * Math.PI * 2 + (elapsedTime * 1.2);
+            // Animate the Snake Halo Ring underneath the sharp point of the heart
+            const haloPosArr = new Float32Array(haloParticleCount * 3);
+            const haloRadius = 4.2; // Small localized ring right under the tip
+
+            for (let i = 0; i < haloParticleCount; i++) {
+                // Wrap points along a circular loop over time
+                const angle = (i / haloParticleCount) * Math.PI * 2 + (elapsedTime * 1.5);
                 
-                // Fast slithering motion up and down
-                const snakeWave = Math.sin(i * 0.15 - elapsedTime * 7) * 0.4;
-                // Tight pulsing variation on the halo's radius
-                const dynamicRadius = haloRadius + Math.cos(i * 0.1 + elapsedTime * 3) * 0.2;
+                // Fast slithering wave movement up and down like a snake
+                const snakeWave = Math.sin(i * 0.18 - elapsedTime * 8) * 0.35;
+                // Minor breathing pulse depth on the ring radius
+                const dynamicRadius = haloRadius + Math.cos(i * 0.08 + elapsedTime * 3) * 0.15;
 
-                ringPosArr[i * 3] = Math.cos(angle) * dynamicRadius;
-                // Positioned perfectly under the heart tip (-6.5 position)
-                ringPosArr[i * 3 + 1] = -6.5 + snakeWave; 
-                ringPosArr[i * 3 + 2] = Math.sin(angle) * dynamicRadius;
+                haloPosArr[i * 3] = Math.cos(angle) * dynamicRadius;
+                // Positioned right at the base reflection plane level (-6.5 height)
+                haloPosArr[i * 3 + 1] = -6.2 + snakeWave; 
+                haloPosArr[i * 3 + 2] = Math.sin(angle) * dynamicRadius;
             }
-            snakeRing.geometry.setAttribute('position', new THREE.BufferAttribute(ringPosArr, 3));
+            snakeHalo.geometry.setAttribute('position', new THREE.BufferAttribute(haloPosArr, 3));
 
             renderer.render(scene, camera);
         }
 
-        // Window resize handler
+        // Window resize adjustment
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
