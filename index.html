@@ -3,28 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Color-Changing Particle Heart Animation</title>
+    <title>I Love You - Particle Heart</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        body, html {
-            width: 100%;
-            height: 100%;
+        body {
+            background-color: #000;
             overflow: hidden;
-            background-color: #050508;
             display: flex;
             justify-content: center;
             align-items: center;
+            height: 100vh;
+            font-family: 'Courier New', Courier, monospace;
         }
         canvas {
-            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        .text-container {
+            position: absolute;
+            top: 10%;
+            text-align: center;
+            z-index: 2;
+            width: 100%;
+            pointer-events: none;
+        }
+        h1 {
+            color: #4da6ff;
+            font-family: 'Arial', sans-serif;
+            font-size: 3.5rem;
+            font-style: italic;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px #0066ff, 0 0 20px #0066ff, 0 0 40px #0044cc;
+            animation: pulse 2s ease-in-out infinite alternate;
+        }
+        @keyframes pulse {
+            from {
+                text-shadow: 0 0 10px #0066ff, 0 0 20px #0066ff, 0 0 30px #0044cc;
+                transform: scale(1);
+            }
+            to {
+                text-shadow: 0 0 15px #3399ff, 0 0 30px #0066ff, 0 0 50px #0044cc, 0 0 70px #002288;
+                transform: scale(1.03);
+            }
         }
     </style>
 </head>
 <body>
+
+    <div class="text-container">
+        <h1>I Love You</h1>
+    </div>
 
     <canvas id="heartCanvas"></canvas>
 
@@ -32,162 +69,113 @@
         const canvas = document.getElementById('heartCanvas');
         const ctx = canvas.getContext('2d');
 
-        function resizeCanvas() {
+        // Set canvas sizing
+        function resize() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
         }
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('resize', resize);
+        resize();
 
-        const config = {
-            heartScale: 14,          
-            particleCount: 5,       // Slightly more particles for richer dust clouds
-        };
+        // The exact Point class logic inspired by the image snippet
+        var Point = (function () {
+            function Point(x, y) {
+                this.x = (typeof x !== 'undefined') ? x : 0;
+                this.y = (typeof y !== 'undefined') ? y : 0;
+            }
+            Point.prototype.clone = function () {
+                return new Point(this.x, this.y);
+            };
+            return Point;
+        })();
 
+        // Particle configuration
+        const particles = [];
+        const particleCount = 600;
+        const baseColor = { r: 50, g: 140, b: 255 }; // Electric blue
+
+        // Mathematical Heart Shape function (Parametric)
         function getHeartPoint(t) {
+            // Standard heart curve equations scaled up
             const x = 16 * Math.pow(Math.sin(t), 3);
-            const y = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
-            return { x, y };
+            const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+            return new Point(x * 12, -y * 12); // Negative y to flip it right-side up
         }
 
-        class Particle {
-            constructor(x, y, color) {
-                this.x = x;
-                this.y = y;
-                this.color = color; // Captures the exact color of the beam at creation time
-                this.vx = (Math.random() - 0.5) * 7;
-                this.vy = (Math.random() - 0.5) * 7;
-                this.size = Math.random() * 2.5 + 1;
-                this.alpha = 1;
-                this.decay = Math.random() * 0.012 + 0.005;
-            }
-
-            update() {
-                this.x += this.vx;
-                this.y += this.vy;
-                this.vx *= 0.94;
-                this.vy *= 0.94;
-                this.alpha -= this.decay;
-            }
-
-            draw() {
-                ctx.save();
-                ctx.globalAlpha = this.alpha;
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = this.color;
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
-            }
+        // Initialize particles
+        for (let i = 0; i < particleCount; i++) {
+            // Distribute points across the parametric heart curve parameter (0 to 2*PI)
+            const t = Math.random() * Math.PI * 2;
+            const targetPos = getHeartPoint(t);
+            
+            // Give them some random offset internal to the heart shape so it looks filled
+            const innerScatter = Math.random();
+            
+            particles.push({
+                baseX: targetPos.x * innerScatter,
+                baseY: targetPos.y * innerScatter,
+                x: targetPos.x * innerScatter,
+                y: targetPos.y * innerScatter,
+                size: Math.random() * 2 + 0.5,
+                // Individual shimmer physics
+                speedX: (Math.random() - 0.5) * 0.5,
+                speedY: (Math.random() - 0.5) * 0.5,
+                alpha: Math.random(),
+                vs: Math.random() * 0.02 + 0.01 // Shimmer speed
+            });
         }
 
-        let particles = [];
-        let heartPoints = [];
-        let traceIndex = 0;
-        
-        for (let t = 0; t <= Math.PI; t += 0.01) {
-            heartPoints.push(t);
-        }
-
-        const finalizedPath = [];
-
+        // Main Animation Loop
         function animate() {
-            // Keep trails dark and smooth
-            ctx.fillStyle = 'rgba(5, 5, 8, 0.12)'; 
+            // Creates a slight trailing blur effect
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2 - 20;
+            const centerY = canvas.height * 0.45; // Centered slightly higher up
 
-            // 1. Trace Phase with dynamic color shifting
-            if (traceIndex < heartPoints.length) {
-                const t = heartPoints[traceIndex];
+            // 1. Draw the Bottom Reflection/Glow pool
+            const gradient = ctx.createRadialGradient(
+                centerX, centerY + 280, 10, 
+                centerX, centerY + 280, 150
+            );
+            gradient.addColorStop(0, 'rgba(0, 132, 255, 0.4)');
+            gradient.addColorStop(0.4, 'rgba(0, 102, 255, 0.15)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.ellipse(centerX, centerY + 270, 160, 25, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 2. Draw and update particles
+            particles.forEach(p => {
+                // Shimmering jitter effect
+                p.x += p.speedX + (Math.sin(Date.now() * 0.005 + p.baseX) * 0.1);
+                p.y += p.speedY + (Math.cos(Date.now() * 0.005 + p.baseY) * 0.1);
                 
-                // Calculate color shifting (0% progress = Green, 50% = Orange/Yellow, 100% = Pink/Purple)
-                const progress = traceIndex / heartPoints.length;
-                // Green starts around hue 130, Orange is ~30, Purple is ~290
-                // This formula cycles smoothly: Green (130) -> Yellow/Orange (40) -> Pink/Purple (300)
-                let hue;
-                if (progress < 0.5) {
-                    // Transition from Green (130) down to Orange (30)
-                    hue = 130 - (progress * 2) * 100;
-                } else {
-                    // Transition from Orange (30) up to Purple (290)
-                    hue = 30 + ((progress - 0.5) * 2) * 260;
-                }
-                
-                const currentColor = `hsl(${hue}, 100%, 65%)`;
+                // Keep particles anchored near their home coordinates
+                p.x += (p.baseX - p.x) * 0.05;
+                p.y += (p.baseY - p.y) * 0.05;
 
-                const ptLeft = getHeartPoint(-t);
-                const xl = centerX + ptLeft.x * config.heartScale;
-                const yl = centerY + ptLeft.y * config.heartScale;
-
-                const ptRight = getHeartPoint(t);
-                const xr = centerX + ptRight.x * config.heartScale;
-                const yr = centerY + ptRight.y * config.heartScale;
-
-                // Save coordinates along with its specific color
-                finalizedPath.push({xl, yl, xr, yr, color: currentColor});
-
-                // Spawn dust matching the current color segment
-                for (let i = 0; i < config.particleCount; i++) {
-                    particles.push(new Particle(xl, yl, currentColor));
-                    particles.push(new Particle(xr, yr, currentColor));
+                // Alternate transparency for twinkling sparkle
+                p.alpha += p.vs;
+                if (p.alpha > 1 || p.alpha < 0.2) {
+                    p.vs = -p.vs;
                 }
 
-                // Bright leading white spark
-                ctx.save();
-                ctx.shadowBlur = 20;
-                ctx.shadowColor = '#fff';
-                ctx.fillStyle = '#fff';
+                // Render particle with bright cyan/blue glow
+                ctx.fillStyle = `rgba(${baseColor.r + Math.floor(Math.random()*50)}, ${baseColor.g + Math.floor(Math.random()*50)}, 255, ${p.alpha})`;
+                ctx.shadowBlur = Math.random() * 10 + 2;
+                ctx.shadowColor = 'rgba(0, 102, 255, 0.8)';
+                
                 ctx.beginPath();
-                ctx.arc(xl, yl, 4, 0, Math.PI*2);
-                ctx.arc(xr, yr, 4, 0, Math.PI*2);
+                ctx.arc(centerX + p.x, centerY + p.y, p.size, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.restore();
-
-                traceIndex += 1; 
-            }
-
-            // 2. Update and draw existing particles
-            particles.forEach((p, index) => {
-                p.update();
-                p.draw();
-                if (p.alpha <= 0) particles.splice(index, 1);
             });
 
-            // 3. Draw the solid glowing multicolored neon line
-            if (finalizedPath.length > 0) {
-                ctx.save();
-                ctx.lineWidth = 3;
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-
-                // We segment the line drawing so each tiny line piece preserves its exact color stage
-                for (let i = 1; i < finalizedPath.length; i++) {
-                    const prev = finalizedPath[i - 1];
-                    const curr = finalizedPath[i];
-
-                    ctx.strokeStyle = curr.color;
-                    ctx.shadowBlur = 15;
-                    ctx.shadowColor = curr.color;
-
-                    // Draw Left segment
-                    ctx.beginPath();
-                    ctx.moveTo(prev.xl, prev.yl);
-                    ctx.lineTo(curr.xl, curr.yl);
-                    ctx.stroke();
-
-                    // Draw Right segment
-                    ctx.beginPath();
-                    ctx.moveTo(prev.xr, prev.yr);
-                    ctx.lineTo(curr.xr, curr.yr);
-                    ctx.stroke();
-                }
-                ctx.restore();
-            }
+            // Reset shadow properties so it doesn't bog down performance elsewhere
+            ctx.shadowBlur = 0;
 
             requestAnimationFrame(animate);
         }
